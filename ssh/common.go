@@ -535,6 +535,22 @@ type Config struct {
 	// The allowed MAC algorithms. If unspecified then a sensible default is
 	// used. Unsupported values are silently ignored.
 	MACs []string
+
+	// AdvertisedKeyExchanges overrides the key exchange list sent in KEXINIT.
+	// If nil, the filtered KeyExchanges list is used. Allows advertising
+	// algorithms not implemented by this library (e.g. group18, for DPI
+	// fingerprint matching). The library still appends ext-info-c on the
+	// client side after this list.
+	AdvertisedKeyExchanges []string
+
+	// AdvertisedMACs overrides the MAC list sent in KEXINIT.
+	// If nil, the filtered MACs list is used. Allows advertising algorithms
+	// not implemented by this library (e.g. UMAC variants).
+	AdvertisedMACs []string
+
+	// AdvertisedCompressions overrides the compression list sent in KEXINIT.
+	// If nil, defaults to ["none"].
+	AdvertisedCompressions []string
 }
 
 // SetDefaults sets sensible values for unset fields in config. This is
