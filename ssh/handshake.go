@@ -520,9 +520,11 @@ func (t *handshakeTransport) sendKexInit() error {
 	}
 	io.ReadFull(t.config.Rand, msg.Cookie[:])
 
-	// We mutate the KexAlgos slice, and possibly add the ext-info extension
-	// algorithm. Since the slice may be user-owned, we create our own copy.
-	msg.KexAlgos = make([]string, 0, len(kexBase)+1) // room for ext-info-c
+	// We mutate the KexAlgos slice, in order to add the kex-strict extension algorithm,
+	// and possibly to add the ext-info extension algorithm. Since the slice may be the
+	// user owned KeyExchanges, we create our own slice in order to avoid using user
+	// owned memory by mistake.
+	msg.KexAlgos = make([]string, 0, len(kexBase)+2) // room for kex-strict and ext-info
 	msg.KexAlgos = append(msg.KexAlgos, kexBase...)
 
 	isServer := len(t.hostKeys) > 0
@@ -549,14 +551,22 @@ func (t *handshakeTransport) sendKexInit() error {
 				msg.ServerHostKeyAlgos = append(msg.ServerHostKeyAlgos, keyFormat)
 			}
 		}
+
+		if t.sessionID == nil {
+			msg.KexAlgos = append(msg.KexAlgos, kexStrictServer)
+		}
 	} else {
 		msg.ServerHostKeyAlgos = t.hostKeyAlgorithms
 
 		// As a client we opt in to receiving SSH_MSG_EXT_INFO so we know what
 		// algorithms the server supports for public key authentication. See RFC
 		// 8308, Section 2.1.
+		//
+		// We also send the strict KEX mode extension algorithm, in order to opt
+		// into the strict KEX mode.
 		if firstKeyExchange := t.sessionID == nil; firstKeyExchange {
 			msg.KexAlgos = append(msg.KexAlgos, "ext-info-c")
+			msg.KexAlgos = append(msg.KexAlgos, kexStrictClient)
 		}
 
 	}
