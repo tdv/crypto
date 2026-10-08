@@ -540,9 +540,13 @@ func (t *handshakeTransport) sendKexInit() error {
 
 			switch s := k.(type) {
 			case MultiAlgorithmSigner:
-				for _, algo := range algorithmsForKeyFormat(keyFormat) {
-					if slices.Contains(s.Algorithms(), underlyingAlgo(algo)) {
-						msg.ServerHostKeyAlgos = append(msg.ServerHostKeyAlgos, algo)
+				// Advertise in the signer's own order, so callers can match the
+				// preference order of other implementations.
+				for _, sigAlgo := range s.Algorithms() {
+					for _, algo := range algorithmsForKeyFormat(keyFormat) {
+						if underlyingAlgo(algo) == sigAlgo {
+							msg.ServerHostKeyAlgos = append(msg.ServerHostKeyAlgos, algo)
+						}
 					}
 				}
 			case AlgorithmSigner:

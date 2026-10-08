@@ -60,6 +60,12 @@ const (
 	KeyExchangeDHGEXSHA256       = "diffie-hellman-group-exchange-sha256"
 	// KeyExchangeMLKEM768X25519 is supported from Go 1.24.
 	KeyExchangeMLKEM768X25519 = "mlkem768x25519-sha256"
+	// KeyExchangeSNTRUP761X25519 is the hybrid Streamlined NTRU Prime
+	// key exchange that OpenSSH 8.5+ prefers.
+	KeyExchangeSNTRUP761X25519 = "sntrup761x25519-sha512"
+	// KeyExchangeSNTRUP761X25519OpenSSH is the pre-standard name of
+	// KeyExchangeSNTRUP761X25519 used by OpenSSH.
+	KeyExchangeSNTRUP761X25519OpenSSH = "sntrup761x25519-sha512@openssh.com"
 
 	// An alias for KeyExchangeCurve25519SHA256. This kex ID will be added if
 	// KeyExchangeCurve25519SHA256 is requested for backward compatibility with
@@ -85,6 +91,8 @@ var (
 	// package in preference order, excluding those with security issues.
 	supportedKexAlgos = []string{
 		KeyExchangeMLKEM768X25519,
+		KeyExchangeSNTRUP761X25519,
+		KeyExchangeSNTRUP761X25519OpenSSH,
 		KeyExchangeCurve25519,
 		KeyExchangeECDHP256,
 		KeyExchangeECDHP384,

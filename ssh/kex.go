@@ -407,6 +407,8 @@ func init() {
 	// mlkem768x25519-sha256 we'll work with fips140=on but not fips140=only
 	// until Go 1.26.
 	kexAlgoMap[KeyExchangeMLKEM768X25519] = &mlkem768WithCurve25519sha256{}
+	kexAlgoMap[KeyExchangeSNTRUP761X25519] = &sntrup761WithCurve25519sha512{}
+	kexAlgoMap[KeyExchangeSNTRUP761X25519OpenSSH] = &sntrup761WithCurve25519sha512{}
 	kexAlgoMap[KeyExchangeECDHP521] = &ecdh{elliptic.P521()}
 	kexAlgoMap[KeyExchangeECDHP384] = &ecdh{elliptic.P384()}
 	kexAlgoMap[KeyExchangeECDHP256] = &ecdh{elliptic.P256()}

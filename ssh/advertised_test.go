@@ -6,6 +6,7 @@ package ssh
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -44,5 +45,41 @@ func TestAdvertisedKexInitKeepsStrictKEX(t *testing.T) {
 	}
 	if msg.MACsClientServer[0] != "umac-64-etm@openssh.com" || !slices.Contains(msg.CompressionClientServer, "zlib@openssh.com") {
 		t.Fatalf("advertised MACs/compressions not used: %v %v", msg.MACsClientServer, msg.CompressionClientServer)
+	}
+}
+
+func TestServerHostKeyAlgosFollowMultiAlgorithmSignerOrder(t *testing.T) {
+	rsaSigner, err := NewSignerFromKey(testPrivateKeys["rsa"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	ordered, err := NewSignerWithAlgorithms(rsaSigner.(AlgorithmSigner), []string{KeyAlgoRSASHA512, KeyAlgoRSASHA256})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := &ServerConfig{}
+	conf.AddHostKey(ordered)
+	conf.AddHostKey(testSigners["ecdsa"])
+	conf.AddHostKey(testSigners["ed25519"])
+	conf.SetDefaults()
+	a, b := memPipe()
+	defer a.Close()
+	defer b.Close()
+	tr := newServerTransport(&kexCaptureTransport{a}, []byte("SSH-2.0-test"), []byte("SSH-2.0-test"), conf)
+	if err := tr.sendKexInit(); err != nil {
+		t.Fatal(err)
+	}
+	packet, err := b.readPacket()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var msg kexInitMsg
+	if err := Unmarshal(packet, &msg); err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(msg.ServerHostKeyAlgos, ",")
+	want := "rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ssh-ed25519"
+	if got != want {
+		t.Fatalf("host key algorithms %q, want %q", got, want)
 	}
 }
