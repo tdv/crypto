@@ -391,6 +391,19 @@ func signAndMarshal(k AlgorithmSigner, rand io.Reader, data []byte, algo string)
 }
 
 // handshake performs key exchange and user authentication.
+// publicKeyHostBoundMethod is OpenSSH's publickey variant that also binds the
+// signature to the server host key ([PROTOCOL], Section 2.5).
+const publicKeyHostBoundMethod = "publickey-hostbound-v00@openssh.com"
+
+func isOwnHostKey(hostKeys []Signer, keyData []byte) bool {
+	for _, k := range hostKeys {
+		if bytes.Equal(k.PublicKey().Marshal(), keyData) {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *connection) serverHandshake(config *ServerConfig) (*Permissions, error) {
 	if len(config.hostKeys) == 0 {
 		return nil, errors.New("ssh: server has no host keys")
@@ -426,6 +439,14 @@ func (s *connection) serverHandshake(config *ServerConfig) (*Permissions, error)
 	var packet []byte
 	if packet, err = s.transport.readPacket(); err != nil {
 		return nil, err
+	}
+	// A client that saw ext-info-s may send SSH_MSG_EXT_INFO right after its
+	// first SSH_MSG_NEWKEYS (RFC 8308, Section 2.4). None of its extensions
+	// change what this server does, so it is skipped.
+	if len(packet) > 0 && packet[0] == msgExtInfo {
+		if packet, err = s.transport.readPacket(); err != nil {
+			return nil, err
+		}
 	}
 
 	var serviceRequest serviceRequestMsg
@@ -770,7 +791,7 @@ userAuthLoop:
 
 			prompter := &sshClientKeyboardInteractive{s}
 			perms, authErr = authConfig.KeyboardInteractiveCallback(s, prompter.Challenge)
-		case "publickey":
+		case "publickey", publicKeyHostBoundMethod:
 			if authConfig.PublicKeyCallback == nil {
 				authErr = errors.New("ssh: publickey auth not configured")
 				break
@@ -794,6 +815,17 @@ userAuthLoop:
 			pubKeyData, payload, ok := parseString(payload)
 			if !ok {
 				return nil, parseError(msgUserAuthRequest)
+			}
+
+			var hostKeyData []byte
+			if userAuthReq.Method == publicKeyHostBoundMethod {
+				if hostKeyData, payload, ok = parseString(payload); !ok {
+					return nil, parseError(msgUserAuthRequest)
+				}
+				if !isOwnHostKey(config.hostKeys, hostKeyData) {
+					authErr = errors.New("ssh: publickey-hostbound request names a host key this server does not have")
+					break
+				}
 			}
 
 			pubKey, err := ParsePublicKey(pubKeyData)
@@ -875,6 +907,9 @@ userAuthLoop:
 				}
 
 				signedData := buildDataSignedForAuth(sessionID, userAuthReq, algo, pubKeyData)
+				if hostKeyData != nil {
+					signedData = appendString(signedData, string(hostKeyData))
+				}
 				// pubKey is reused below for VerifiedPublicKeyCallback and
 				// must remain the key as presented by the client; derive a
 				// separate value for Verify that carries any applicable

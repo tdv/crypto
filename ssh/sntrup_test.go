@@ -107,3 +107,23 @@ func TestSNTRUP761KexWithOpenSSHServer(t *testing.T) {
 		}
 	}
 }
+
+func TestServerAcceptsClientExtInfoFromOpenSSH(t *testing.T) {
+	sshBin, err := exec.LookPath("ssh")
+	if err != nil {
+		t.Skip("no OpenSSH client")
+	}
+	addr, cfg := sntrupTestServer(t, KeyExchangeCurve25519)
+	cfg.AdvertisedKeyExchanges = []string{KeyExchangeCurve25519, "ext-info-s"}
+	host, port, _ := net.SplitHostPort(addr)
+	out, _ := exec.Command(sshBin, "-v", "-N", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null", "-o", "ConnectTimeout=5", "-p", port, "-W", "127.0.0.1:1",
+		"probe@"+host).CombinedOutput()
+	log := string(out)
+	if !strings.Contains(log, "Sending SSH2_MSG_EXT_INFO") || !strings.Contains(log, "Authenticated to") {
+		t.Fatalf("server must accept the client's EXT_INFO after advertising ext-info-s:\n%s", log)
+	}
+	if !strings.Contains(log, "publickey-hostbound@openssh.com=<0>") || !strings.Contains(log, "ping@openssh.com=<0>") {
+		t.Fatalf("server EXT_INFO does not carry OpenSSH's extensions:\n%s", log)
+	}
+}

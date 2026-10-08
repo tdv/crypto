@@ -755,19 +755,16 @@ func (t *handshakeTransport) enterKeyExchange(otherInitPacket []byte) error {
 	// message with the server-sig-algs extension if the client supports it. See
 	// RFC 8308, Sections 2.4 and 3.1, and [PROTOCOL], Section 1.9.
 	if !isClient && firstKeyExchange && slices.Contains(clientInit.KexAlgos, "ext-info-c") {
-		supportedPubKeyAuthAlgosList := strings.Join(t.publicKeyAuthAlgorithms, ",")
-		extInfo := &extInfoMsg{
-			NumExtensions: 2,
-			Payload:       make([]byte, 0, 4+15+4+len(supportedPubKeyAuthAlgosList)+4+16+4+1),
+		extInfo := &extInfoMsg{}
+		for _, ext := range [][2]string{
+			{"server-sig-algs", strings.Join(t.publicKeyAuthAlgorithms, ",")},
+			{"publickey-hostbound@openssh.com", "0"},
+			{"ping@openssh.com", "0"},
+		} {
+			extInfo.NumExtensions++
+			extInfo.Payload = appendString(extInfo.Payload, ext[0])
+			extInfo.Payload = appendString(extInfo.Payload, ext[1])
 		}
-		extInfo.Payload = appendInt(extInfo.Payload, len("server-sig-algs"))
-		extInfo.Payload = append(extInfo.Payload, "server-sig-algs"...)
-		extInfo.Payload = appendInt(extInfo.Payload, len(supportedPubKeyAuthAlgosList))
-		extInfo.Payload = append(extInfo.Payload, supportedPubKeyAuthAlgosList...)
-		extInfo.Payload = appendInt(extInfo.Payload, len("ping@openssh.com"))
-		extInfo.Payload = append(extInfo.Payload, "ping@openssh.com"...)
-		extInfo.Payload = appendInt(extInfo.Payload, 1)
-		extInfo.Payload = append(extInfo.Payload, "0"...)
 		if err := t.conn.writePacket(Marshal(extInfo)); err != nil {
 			return err
 		}
